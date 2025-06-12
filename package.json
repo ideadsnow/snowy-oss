@@ -1,0 +1,36 @@
+{
+  "name": "snowy-oss",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "clean": "rimraf dist .output .cache src-tauri/target .tauri src-tauri/.tauri-dist src-tauri/.tauri-bundle node_modules/.vite",
+    "clean:full": "pnpm run clean && rimraf src-tauri/**/*.dmg src-tauri/**/*.app src-tauri/**/*.exe"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.0.0",
+    "@aws-sdk/client-s3": "^3.828.0",
+    "@aws-sdk/s3-request-presigner": "^3.828.0",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "antd": "^5.26.0",
+    "lucide-react": "^0.514.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.6.2",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "rimraf": "^6.0.1",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  }
+}
