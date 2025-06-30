@@ -29,13 +29,14 @@ const ImagePreviewModal: React.FC = () => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [showToolbar, setShowToolbar] = useState(true);
   const [toolbarTimeout, setToolbarTimeout] = useState<number | null>(null);
   const [notifications, setNotifications] = useState<{
     type: 'success' | 'error' | 'info';
     message: string;
   } | null>(null);
+  const [imageRef, setImageRef] = useState<HTMLImageElement | null>(null);
 
   const {
     showImagePreview,
@@ -118,6 +119,8 @@ const ImagePreviewModal: React.FC = () => {
     }
   }, [showImagePreview]);
 
+
+
   const handleZoomIn = () => {
     setScale(prev => Math.min(prev * 1.2, 5));
   };
@@ -135,7 +138,7 @@ const ImagePreviewModal: React.FC = () => {
   };
 
   const handleReset = () => {
-    setScale(1);
+    setScale(1); // 重置到当前CSS适应大小（100%）
     setRotation(0);
     setPosition({ x: 0, y: 0 });
   };
@@ -301,11 +304,6 @@ const ImagePreviewModal: React.FC = () => {
         e.preventDefault();
         handleReset();
         break;
-      case 'f':
-      case 'F':
-        e.preventDefault();
-        handleFullscreen();
-        break;
     }
   };
 
@@ -328,18 +326,33 @@ const ImagePreviewModal: React.FC = () => {
     if (scale <= 1) return;
 
     setIsDragging(true);
-    setDragStart({
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
+    // 记录鼠标按下的位置
+    setLastMousePos({
+      x: e.clientX,
+      y: e.clientY,
     });
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging || scale <= 1) return;
 
-    setPosition({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
+    // 计算鼠标移动的增量
+    const deltaX = e.clientX - lastMousePos.x;
+    const deltaY = e.clientY - lastMousePos.y;
+
+    // 根据缩放级别调整拖拽速度，放大越多移动越慢
+    const dragSpeed = Math.max(0.4, 1 / scale);
+
+    // 应用速度调整并累加到当前位置
+    setPosition(prev => ({
+      x: prev.x + deltaX * dragSpeed,
+      y: prev.y + deltaY * dragSpeed,
+    }));
+
+    // 更新鼠标位置
+    setLastMousePos({
+      x: e.clientX,
+      y: e.clientY,
     });
   };
 
@@ -380,7 +393,7 @@ const ImagePreviewModal: React.FC = () => {
 
   return (
     <Dialog open={showImagePreview} onOpenChange={setShowImagePreview}>
-      <DialogContent className="max-w-[90vw] max-h-[90vh] p-0 bg-black border-none">
+      <DialogContent className="max-w-[98vw] max-h-[98vh] p-0 bg-black border-none">
         {/* 隐藏的可访问性标题 */}
         <DialogHeader className="sr-only">
           <DialogTitle>
@@ -388,7 +401,7 @@ const ImagePreviewModal: React.FC = () => {
           </DialogTitle>
         </DialogHeader>
         <div
-          className="relative w-full h-[80vh] overflow-hidden"
+          className="relative w-full h-[94vh] overflow-hidden"
           onMouseMove={handleMouseActivity}
         >
           {/* 通知栏 */}
@@ -469,15 +482,6 @@ const ImagePreviewModal: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleFullscreen}
-                className="text-white hover:bg-white/20"
-                title={isFullscreen ? '退出全屏 (F)' : '全屏 (F)'}
-              >
-                {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
                 onClick={handleClose}
                 className="text-white hover:bg-white/20"
                 title="关闭 (ESC)"
@@ -514,13 +518,14 @@ const ImagePreviewModal: React.FC = () => {
 
             {previewImageUrl && (
               <img
+                ref={setImageRef}
                 src={previewImageUrl}
                 alt="图片预览"
                 onLoad={handleImageLoad}
                 onError={handleImageError}
                 className={`transition-transform duration-200 select-none ${
                   loading || imageError ? 'hidden' : 'block'
-                } ${scale <= 1 ? 'max-w-full max-h-full' : ''}`}
+                } max-w-full max-h-full object-contain`}
                 style={{
                   transform: `scale(${scale}) rotate(${rotation}deg) translate(${position.x}px, ${position.y}px)`,
                   transition: isDragging ? 'none' : 'transform 0.2s ease',
@@ -537,7 +542,7 @@ const ImagePreviewModal: React.FC = () => {
               showToolbar ? 'translate-y-0' : 'translate-y-full'
             }`}>
               <div className="text-white/70 text-xs">
-                快捷键: +/- 缩放 | 鼠标滚轮缩放 | 拖拽移动 | 0 重置 | F 全屏 | ESC 关闭
+                快捷键: +/- 缩放 | 鼠标滚轮缩放 | 拖拽移动 | 0 重置 | ESC 关闭
               </div>
             </div>
           )}
