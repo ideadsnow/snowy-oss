@@ -1,8 +1,14 @@
-import React, { useEffect } from 'react';
-import { FolderOpen, Database, RefreshCw, AlertCircle, Check } from 'lucide-react';
-import { useS3Store } from '../stores/useS3Store';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useEffect } from "react";
+import {
+  FolderOpen,
+  Database,
+  RefreshCw,
+  AlertCircle,
+  Check,
+} from "lucide-react";
+import { useS3Store } from "../stores/useS3Store";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const BucketList: React.FC = () => {
   const {
@@ -41,7 +47,9 @@ const BucketList: React.FC = () => {
             </div>
             <div className="space-y-2">
               <p className="text-gray-600 font-medium">请先配置 OSS 连接</p>
-              <p className="text-sm text-gray-500">配置完成后即可查看 Bucket 列表</p>
+              <p className="text-sm text-gray-500">
+                配置完成后即可查看 Bucket 列表
+              </p>
             </div>
           </div>
         </CardContent>
@@ -64,7 +72,7 @@ const BucketList: React.FC = () => {
             disabled={loading}
             className="shadow-sm border-gray-300"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </CardHeader>
@@ -83,7 +91,12 @@ const BucketList: React.FC = () => {
               <p className="text-red-600 font-medium">加载失败</p>
               <p className="text-sm text-gray-500">{error}</p>
             </div>
-            <Button onClick={handleRefresh} variant="outline" size="sm" className="shadow-sm">
+            <Button
+              onClick={handleRefresh}
+              variant="outline"
+              size="sm"
+              className="shadow-sm"
+            >
               <RefreshCw className="w-4 h-4 mr-2" />
               重试
             </Button>
@@ -95,7 +108,9 @@ const BucketList: React.FC = () => {
             </div>
             <div className="space-y-2">
               <p className="text-gray-600 font-medium">暂无 Bucket</p>
-              <p className="text-sm text-gray-500">您的账户下还没有创建任何 Bucket</p>
+              <p className="text-sm text-gray-500">
+                您的账户下还没有创建任何 Bucket
+              </p>
             </div>
           </div>
         ) : (
@@ -106,30 +121,43 @@ const BucketList: React.FC = () => {
                 onClick={() => selectBucket(bucket.name)}
                 className={`w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
                   selectedBucket === bucket.name
-                    ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 shadow-sm'
-                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                    ? "border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100 shadow-sm"
+                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      selectedBucket === bucket.name
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'
-                    }`}>
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        selectedBucket === bucket.name
+                          ? "bg-blue-600 text-white"
+                          : "bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600"
+                      }`}
+                    >
                       <FolderOpen className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className={`font-semibold ${
-                        selectedBucket === bucket.name ? 'text-blue-900' : 'text-gray-900'
-                      }`}>
+                      <p
+                        className={`font-semibold ${
+                          selectedBucket === bucket.name
+                            ? "text-blue-900"
+                            : "text-gray-900"
+                        }`}
+                      >
                         {bucket.name}
                       </p>
                       {bucket.creationDate && (
-                        <p className={`text-sm ${
-                          selectedBucket === bucket.name ? 'text-blue-700' : 'text-gray-500'
-                        }`}>
-                          创建于 {new Date(bucket.creationDate).toLocaleDateString('zh-CN')}
+                        <p
+                          className={`text-sm ${
+                            selectedBucket === bucket.name
+                              ? "text-blue-700"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          创建于{" "}
+                          {new Date(bucket.creationDate).toLocaleDateString(
+                            "zh-CN"
+                          )}
                         </p>
                       )}
                     </div>
@@ -150,4 +178,3 @@ const BucketList: React.FC = () => {
 };
 
 export default BucketList;
-

@@ -22,7 +22,6 @@ export interface BucketInfo {
 
 export interface FilePreview {
   url: string;
-  type: 'image' | 'video' | 'text' | 'other';
+  type: "image" | "video" | "text" | "other";
   name: string;
 }
-
