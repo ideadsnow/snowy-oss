@@ -6,7 +6,9 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "http:default"
+    "http:default",
+    "dialog:default",
+    "fs:default"
   ],
   "allow": [
     {
@@ -26,6 +28,9 @@
     },
     {
       "command": "get_presigned_url"
+    },
+    {
+      "command": "download_file"
     }
   ]
 }

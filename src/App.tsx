@@ -1,14 +1,12 @@
-import React, { useEffect } from 'react';
-import { Layout, Row, Col, Button, Space, Typography, Tag, Divider } from 'antd';
-import { SettingOutlined, CloudOutlined, ApiOutlined } from '@ant-design/icons';
+import React from 'react';
+import { Cloud, Settings, Wifi, WifiOff, AlertCircle } from 'lucide-react';
 import { useS3Store } from './stores/useS3Store';
 import ConfigModal from './components/ConfigModal';
 import BucketList from './components/BucketList';
 import ObjectList from './components/ObjectList';
-import './App.css';
-
-const { Header, Content, Sider } = Layout;
-const { Title, Text } = Typography;
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 
 function App() {
   const {
@@ -31,148 +29,130 @@ function App() {
 
   const getConnectionStatus = () => {
     if (!config) {
-      return <Tag color="default">未配置</Tag>;
+      return <Badge variant="outline" className="text-gray-500 border-gray-300">未配置</Badge>;
     }
     if (isConnected) {
-      return <Tag color="success">已连接</Tag>;
+      return <Badge className="bg-green-600 hover:bg-green-700 text-white"><Wifi className="w-3 h-3 mr-1" />已连接</Badge>;
     }
     if (connectionError) {
-      return <Tag color="error">连接失败</Tag>;
+      return <Badge variant="destructive"><WifiOff className="w-3 h-3 mr-1" />连接失败</Badge>;
     }
-    return <Tag color="processing">连接中</Tag>;
+    return <Badge className="bg-blue-500 hover:bg-blue-600 text-white">连接中</Badge>;
   };
 
-  return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header 
-        style={{ 
-          background: '#fff', 
-          padding: '0 24px', 
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <CloudOutlined style={{ fontSize: '24px', color: '#1890ff', marginRight: '12px' }} />
-          <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-            Snowy OSS Manager
-          </Title>
-        </div>
-        
-        <Space>
-          {config && (
-            <>
-              <Text type="secondary">
-                <ApiOutlined /> {new URL(config.endpoint).hostname}
-              </Text>
-              {getConnectionStatus()}
-              <Divider type="vertical" />
-            </>
-          )}
-          
-          <Button 
-            icon={<SettingOutlined />} 
-            onClick={handleOpenConfig}
-            type={config ? 'default' : 'primary'}
-          >
-            {config ? '修改配置' : 'OSS 配置'}
-          </Button>
-          
-          {config && (
-            <Button onClick={handleDisconnect} danger>
-              断开连接
+    return (
+    <div className="h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="border-b border-gray-200 bg-white shadow-sm">
+        <div className="flex h-16 items-center justify-between px-6">
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg shadow-md">
+              <Cloud className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Snowy OSS Manager</h1>
+              <p className="text-sm text-gray-600">现代化对象存储管理工具</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-4">
+            {config && (
+              <>
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <span className="font-medium">{new URL(config.endpoint).hostname}</span>
+                  {getConnectionStatus()}
+                </div>
+                <div className="w-px h-6 bg-gray-300" />
+              </>
+            )}
+
+            <Button
+              variant={config ? 'outline' : 'default'}
+              onClick={handleOpenConfig}
+              className="flex items-center space-x-2 shadow-sm"
+            >
+              <Settings className="w-4 h-4" />
+              <span>{config ? '修改配置' : 'OSS 配置'}</span>
             </Button>
-          )}
-        </Space>
-      </Header>
-      
-      <Layout>
-        <Sider
-          width={300}
-          style={{
-            background: '#fff',
-            borderRight: '1px solid #f0f0f0',
-          }}
-        >
-          <div style={{ padding: '16px' }}>
+
+            {config && (
+              <Button variant="destructive" onClick={handleDisconnect} className="shadow-sm">
+                断开连接
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-1 flex">
+        {/* Sidebar */}
+        <aside className="w-80 border-r border-gray-200 bg-white shadow-sm">
+          <div className="p-6">
             <BucketList />
           </div>
-        </Sider>
-        
-        <Layout style={{ padding: '16px' }}>
-          <Content
-            style={{
-              background: '#fff',
-              borderRadius: '8px',
-              overflow: 'auto',
-            }}
-          >
-            <div style={{ padding: '16px' }}>
-              {!config ? (
-                <div style={{ 
-                  textAlign: 'center', 
-                  padding: '80px 20px',
-                  color: '#999'
-                }}>
-                  <CloudOutlined style={{ fontSize: '64px', marginBottom: '16px' }} />
-                  <Title level={3} type="secondary">
-                    欢迎使用 Snowy OSS Manager
-                  </Title>
-                  <Text type="secondary">
-                    请点击“OSS 配置”按钮开始配置您的对象存储服务
-                  </Text>
-                  <br />
-                  <Button 
-                    type="primary" 
-                    size="large" 
-                    icon={<SettingOutlined />}
-                    onClick={handleOpenConfig}
-                    style={{ marginTop: '24px' }}
-                  >
-                    开始配置
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <ObjectList />
-                  
-                  {selectedBucket && (
-                    <div style={{ 
-                      marginTop: '16px', 
-                      padding: '12px', 
-                      background: '#f5f5f5', 
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      color: '#666'
-                    }}>
-                      <Row gutter={24}>
-                        <Col span={8}>
-                          <strong>当前 Bucket:</strong> {selectedBucket}
-                        </Col>
-                        <Col span={8}>
-                          <strong>文件数量:</strong> {objects.length}
-                        </Col>
-                        <Col span={8}>
-                          <strong>总大小:</strong> {
-                            objects.reduce((sum, obj) => sum + (obj.size || 0), 0) > 0
-                              ? `${(objects.reduce((sum, obj) => sum + (obj.size || 0), 0) / 1024 / 1024).toFixed(2)} MB`
-                              : '0 B'
-                          }
-                        </Col>
-                      </Row>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col bg-gray-50">
+          <div className="p-6 flex-1">
+            {!config ? (
+              <div className="flex items-center justify-center h-full">
+                <Card className="w-full max-w-md shadow-lg border-0">
+                  <CardContent className="pt-8 pb-8">
+                    <div className="text-center space-y-6">
+                      <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center">
+                        <Cloud className="w-10 h-10 text-blue-600" />
+                      </div>
+                      <div className="space-y-3">
+                        <h3 className="text-xl font-bold text-gray-900">欢迎使用 Snowy OSS Manager</h3>
+                        <p className="text-gray-600 leading-relaxed">
+                          请点击"OSS 配置"按钮开始配置您的对象存储服务
+                        </p>
+                      </div>
+                      <Button onClick={handleOpenConfig} className="w-full h-12 text-base font-medium shadow-md">
+                        <Settings className="w-5 h-5 mr-2" />
+                        开始配置
+                      </Button>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-          </Content>
-        </Layout>
-      </Layout>
-      
+                  </CardContent>
+                </Card>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <ObjectList />
+
+                {selectedBucket && (
+                  <Card className="shadow-sm border-gray-200">
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-3 gap-6 text-sm">
+                        <div>
+                          <span className="font-semibold text-gray-700">当前 Bucket:</span>
+                          <p className="text-gray-600 mt-1">{selectedBucket}</p>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-700">文件数量:</span>
+                          <p className="text-gray-600 mt-1">{objects.length}</p>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-700">总大小:</span>
+                          <p className="text-gray-600 mt-1">
+                            {objects.reduce((sum, obj) => sum + (obj.size || 0), 0) > 0
+                              ? `${(objects.reduce((sum, obj) => sum + (obj.size || 0), 0) / 1024 / 1024).toFixed(2)} MB`
+                              : '0 B'}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
       <ConfigModal />
-    </Layout>
+    </div>
   );
 }
 

@@ -1,34 +1,190 @@
+# ========== 依赖和包管理器 ==========
+node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# PNPM 工作区相关
+.pnpm-workspace-state.json
+node_modules/.modules.yaml
+
 # ========== 前端构建产物 ==========
 dist/
+build/
 .output/
 .cache/
-node_modules/.vite/
-*.log
+.vite/
+.next/
+*.tsbuildinfo
+.turbo/
 
-# ========== Tauri 2 核心产物 ==========
+# ========== Tauri 核心产物 ==========
 src-tauri/target/
 .tauri/
 src-tauri/.tauri-dist/
 src-tauri/.tauri-bundle/
+src-tauri/gen/
 
 # ========== 平台相关构建产物 ==========
 # macOS
 src-tauri/**/*.app
 src-tauri/**/*.dmg
+*.app
+*.dmg
 
 # Windows
 src-tauri/**/*.exe
 src-tauri/**/*.msi
+*.exe
+*.msi
 
 # Linux
 src-tauri/**/*.AppImage
 src-tauri/**/*.deb
+*.AppImage
+*.deb
 
-# ========== Node 环境 ==========
-node_modules/
-pnpm-lock.yaml
+# ========== 环境变量和配置 ==========
+.env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+.npmrc
+
+# ========== IDE 和编辑器配置 ==========
+.vscode
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ========== 测试和覆盖率 ==========
+coverage/
+.nyc_output/
+junit.xml
+.coverage
+htmlcov/
+.pytest_cache/
+.vitest/
+test-results/
+playwright-report/
+
+# ========== 日志文件 ==========
+*.log
+logs/
+*.log.*
+lerna-debug.log*
+
+# ========== 临时文件 ==========
+*.tmp
+*.temp
+.tmp/
+.temp/
 
 # ========== 系统文件 ==========
+# macOS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========== 运行时文件 ==========
+*.pid
+*.seed
+*.pid.lock
+
+# ========== 备份和版本控制 ==========
+*.backup
+*.bak
+*.orig
+*.rej
+
+# ========== 安全敏感文件 ==========
+*.pem
+*.key
+*.p12
+*.crt
+*.cer
+*.pfx
+*.p7b
+*.p7r
+.secrets/
+auth.json
+
+# ========== 现代前端工具缓存 ==========
+.eslintcache
+.stylelintcache
+.parcel-cache/
+.turbo/
+.swc/
+.rollup.cache/
+.webpack/
+.vite-inspect/
+
+# ========== Rust 开发工具 ==========
+# Rust analyzer 缓存
+.rust-analyzer/
+
+# ========== 自定义忽略（项目特定）==========
+# 本地开发配置
+.env.development.local
+config/local.json
+
+# 本地数据库和存储
+*.db
+*.sqlite
+*.sqlite3
+
+# 性能分析文件
+*.cpuprofile
+*.heapprofile

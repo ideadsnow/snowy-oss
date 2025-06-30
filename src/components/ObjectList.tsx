@@ -1,32 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Table,
-  Card,
-  Button,
-  message,
-  Modal,
-  Checkbox,
-  Tag,
-  Image,
-  Space,
-  Tooltip
-} from 'antd';
-import {
-  DeleteOutlined,
-  EyeOutlined,
-  ReloadOutlined,
-  DownloadOutlined,
-  FileImageOutlined,
-  FileOutlined,
-} from '@ant-design/icons';
+  Trash2,
+  Eye,
+  RefreshCw,
+  Download,
+  FileImage,
+  File,
+  Calendar,
+  HardDrive,
+  AlertTriangle,
+  Check,
+  X,
+  Folder,
+  FolderOpen,
+  ChevronRight,
+  Home
+} from 'lucide-react';
 import { useS3Store } from '../stores/useS3Store';
 import { S3Service } from '../services/s3Service';
 import { S3Object } from '../types/s3';
 import ImagePreviewModal from './ImagePreviewModal';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog';
+
 
 const ObjectList: React.FC = () => {
-  const [deleting, setDeleting] = useState(false);
+    const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [notifications, setNotifications] = useState<{
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   const {
     config,
@@ -35,44 +49,84 @@ const ObjectList: React.FC = () => {
     selectedObjects,
     currentPrefix,
     isLoadingObjects,
-    setObjects,
+    error: storeError,
     setSelectedObjects,
     toggleObjectSelection,
-    setLoadingObjects,
+    setCurrentPrefix,
+    fetchObjects,
+    deleteObjects,
     showImagePreview,
     previewImageUrl,
     setShowImagePreview,
   } = useS3Store();
 
-  const loadObjects = async () => {
-    if (!config || !selectedBucket) {
-      return;
+  // 解析文件夹结构
+  const { folders, files } = useMemo(() => {
+    const folders = new Set<string>();
+    const files: S3Object[] = [];
+
+    const prefix = currentPrefix || '';
+
+    objects.forEach(obj => {
+      // 移除当前前缀
+      const relativePath = prefix ? obj.key.replace(prefix, '') : obj.key;
+
+      // 跳过空路径
+      if (!relativePath) return;
+
+      const pathParts = relativePath.split('/');
+
+      if (pathParts.length > 1 && pathParts[0]) {
+        // 这是一个文件夹中的项目
+        folders.add(pathParts[0]);
+      } else if (pathParts[0] && !pathParts[0].includes('/')) {
+        // 这是当前目录下的文件
+        files.push(obj);
+      }
+    });
+
+    return {
+      folders: Array.from(folders).sort(),
+      files: files.sort((a, b) => a.key.localeCompare(b.key))
+    };
+  }, [objects, currentPrefix]);
+
+  // 面包屑导航
+  const breadcrumbs = useMemo(() => {
+    if (!currentPrefix) return [];
+
+    const parts = currentPrefix.split('/').filter(Boolean);
+    const crumbs = [];
+
+    for (let i = 0; i < parts.length; i++) {
+      crumbs.push({
+        name: parts[i],
+        path: parts.slice(0, i + 1).join('/') + '/'
+      });
     }
 
-    try {
-      setLoadingObjects(true);
-      const objectList = await S3Service.listObjects(
-        config,
-        selectedBucket,
-        currentPrefix || undefined
-      );
-      setObjects(objectList);
-    } catch (error) {
-      console.error('Failed to load objects:', error);
-      message.error(`加载文件列表失败: ${error}`);
-    } finally {
-      setLoadingObjects(false);
-    }
+    return crumbs;
+  }, [currentPrefix]);
+
+  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+    setNotifications({ type, message });
+    setTimeout(() => setNotifications(null), 5000);
   };
 
   useEffect(() => {
     if (selectedBucket) {
-      loadObjects();
+      fetchObjects().catch(error => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        showNotification('error', `加载文件列表失败: ${errorMessage}`);
+      });
     }
-  }, [selectedBucket, currentPrefix]);
+  }, [selectedBucket, currentPrefix]); // 移除 fetchObjects 依赖，避免重复调用
 
   const handleRefresh = () => {
-    loadObjects();
+    fetchObjects().catch(error => {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      showNotification('error', `刷新文件列表失败: ${errorMessage}`);
+    });
   };
 
   const handlePreview = async (object: S3Object) => {
@@ -80,48 +134,87 @@ const ObjectList: React.FC = () => {
 
     try {
       const fileType = S3Service.getFileType(object.key);
-      
+
       if (fileType === 'image') {
         const url = await S3Service.getPresignedUrl(config, selectedBucket, object.key);
         setShowImagePreview(true, url, object);
       } else {
-        message.info('该文件类型不支持预览');
+        showNotification('info', '该文件类型不支持预览');
       }
     } catch (error) {
       console.error('Failed to generate preview URL:', error);
-      message.error('生成预览链接失败');
+      showNotification('error', '生成预览链接失败');
     }
   };
 
-  const handleDownload = async (object: S3Object) => {
+    const handleDownload = async (object: S3Object) => {
     if (!config || !selectedBucket) return;
 
+        try {
+      // 先尝试 Tauri 原生下载，如果失败则回退到浏览器下载
+      try {
+        await downloadWithTauri(object);
+      } catch (tauriError: any) {
+        console.warn('Tauri 下载不可用，使用浏览器下载:', tauriError.message);
+        if (tauriError.message?.includes('not found') ||
+            tauriError.message?.includes('command') ||
+            tauriError.message?.includes('Command') ||
+            tauriError.message?.includes('invoke')) {
+          await downloadWithBrowser(object);
+        } else {
+          throw tauriError; // 重新抛出非命令相关的错误
+        }
+      }
+    } catch (error) {
+      console.error('下载失败:', error);
+      showNotification('error', '下载失败');
+    }
+  };
+
+  const downloadWithTauri = async (object: S3Object) => {
+    // 使用 Tauri v2 的核心 invoke 方法来调用后端实现的下载功能
+    const { invoke } = await import('@tauri-apps/api/core');
+
+    const fileName = object.key.split('/').pop() || object.key;
+    showNotification('info', '正在选择保存位置...');
+
+    // 调用后端的下载文件函数
+    const result = await invoke('download_file', {
+      request: {
+        config: config!,
+        bucket_name: selectedBucket!,
+        object_key: object.key,
+        default_file_name: fileName
+      }
+    });
+
+    showNotification('success', `文件已保存: ${result}`);
+  };
+
+  const downloadWithBrowser = async (object: S3Object) => {
     try {
-      message.loading({ content: '正在生成下载链接...', key: 'download', duration: 0 });
-      const url = await S3Service.getPresignedUrl(config, selectedBucket, object.key);
-      
-      // 创建一个临时的 a 标签来触发下载
+      showNotification('info', '正在生成下载链接...');
+      const url = await S3Service.getPresignedUrl(config!, selectedBucket!, object.key);
+
       const link = document.createElement('a');
       link.href = url;
-      link.download = object.key.split('/').pop() || object.key; // 使用文件名作为下载名
+      link.download = object.key.split('/').pop() || object.key;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      
-      // 添加到 DOM，点击，然后移除
+
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      message.success({ content: '下载已开始', key: 'download' });
+
+      showNotification('success', '下载已开始');
     } catch (error) {
-      console.error('Failed to generate download URL:', error);
-      message.error({ content: '生成下载链接失败', key: 'download' });
+      throw error;
     }
   };
 
   const handleDelete = () => {
     if (selectedObjects.length === 0) {
-      message.warning('请选择要删除的文件');
+      showNotification('info', '请选择要删除的文件');
       return;
     }
     setShowDeleteModal(true);
@@ -132,14 +225,13 @@ const ObjectList: React.FC = () => {
 
     try {
       setDeleting(true);
-      await S3Service.deleteObjects(config, selectedBucket, selectedObjects);
-      message.success(`成功删除 ${selectedObjects.length} 个文件`);
-      setSelectedObjects([]);
+      await deleteObjects(selectedObjects);
+      showNotification('success', `成功删除 ${selectedObjects.length} 个文件`);
       setShowDeleteModal(false);
-      loadObjects(); // Refresh the list
     } catch (error) {
       console.error('Failed to delete objects:', error);
-      message.error(`删除文件失败: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      showNotification('error', `删除文件失败: ${errorMessage}`);
     } finally {
       setDeleting(false);
     }
@@ -147,164 +239,362 @@ const ObjectList: React.FC = () => {
 
   const getFileIcon = (filename: string) => {
     const fileType = S3Service.getFileType(filename);
-    return fileType === 'image' ? <FileImageOutlined /> : <FileOutlined />;
+    return fileType === 'image' ?
+      <FileImage className="w-4 h-4 text-green-500" /> :
+      <File className="w-4 h-4 text-gray-500" />;
   };
 
   const getFileTypeTag = (filename: string) => {
     const fileType = S3Service.getFileType(filename);
-    const colors = {
-      image: 'green',
-      video: 'blue',
-      text: 'orange',
-      other: 'default',
+    const colorClasses = {
+      image: 'bg-green-100 text-green-800 border-green-200',
+      video: 'bg-blue-100 text-blue-800 border-blue-200',
+      text: 'bg-orange-100 text-orange-800 border-orange-200',
+      other: 'bg-gray-100 text-gray-800 border-gray-200',
     };
-    return <Tag color={colors[fileType]}>{fileType.toUpperCase()}</Tag>;
+
+    return fileType.toUpperCase();
   };
 
-  const columns = [
-    {
-      title: (
-        <Checkbox
-          checked={selectedObjects.length > 0 && selectedObjects.length === objects.length}
-          indeterminate={selectedObjects.length > 0 && selectedObjects.length < objects.length}
-          onChange={(e) => {
-            if (e.target.checked) {
-              setSelectedObjects(objects.map(obj => obj.key));
-            } else {
-              setSelectedObjects([]);
-            }
-          }}
-        />
-      ),
-      dataIndex: 'selected',
-      width: 50,
-      render: (_: any, record: S3Object) => (
-        <Checkbox
-          checked={selectedObjects.includes(record.key)}
-          onChange={() => toggleObjectSelection(record.key)}
-        />
-      ),
-    },
-    {
-      title: '文件名',
-      dataIndex: 'key',
-      key: 'key',
-      render: (key: string) => (
-        <Space>
-          {getFileIcon(key)}
-          <span>{key}</span>
-        </Space>
-      ),
-    },
-    {
-      title: '类型',
-      dataIndex: 'key',
-      key: 'type',
-      width: 100,
-      render: (key: string) => getFileTypeTag(key),
-    },
-    {
-      title: '大小',
-      dataIndex: 'size',
-      key: 'size',
-      width: 120,
-      render: (size?: number) => S3Service.formatFileSize(size),
-    },
-    {
-      title: '修改时间',
-      dataIndex: 'last_modified',
-      key: 'last_modified',
-      width: 180,
-      render: (date?: string) => 
-        date ? new Date(date).toLocaleString() : '-',
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 120,
-      render: (_: any, record: S3Object) => (
-        <Space>
-          <Tooltip title="预览">
-            <Button
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => handlePreview(record)}
-            />
-          </Tooltip>
-          <Tooltip title="下载">
-            <Button
-              icon={<DownloadOutlined />}
-              size="small"
-              onClick={() => handleDownload(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
+  const getFileTypeBadgeClass = (filename: string) => {
+    const fileType = S3Service.getFileType(filename);
+    const colorClasses = {
+      image: 'bg-green-100 text-green-800 border-green-200',
+      video: 'bg-blue-100 text-blue-800 border-blue-200',
+      text: 'bg-orange-100 text-orange-800 border-orange-200',
+      other: 'bg-gray-100 text-gray-800 border-gray-200',
+    };
+
+    return colorClasses[fileType];
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedObjects(files.map(obj => obj.key));
+    } else {
+      setSelectedObjects([]);
+    }
+  };
+
+  // 进入文件夹
+  const handleFolderClick = (folderName: string) => {
+    const newPrefix = (currentPrefix || '') + folderName + '/';
+    setCurrentPrefix(newPrefix);
+  };
+
+  // 导航到指定路径
+  const handleBreadcrumbClick = (path: string) => {
+    setCurrentPrefix(path);
+  };
+
+  // 返回根目录
+  const handleGoHome = () => {
+    setCurrentPrefix('');
+  };
 
   if (!selectedBucket) {
     return (
-      <Card title="文件列表" size="small">
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-          请选择一个 Bucket 查看文件
-        </div>
+      <Card className="shadow-sm border-gray-200">
+        <CardContent className="pt-6">
+          <div className="text-center py-12 space-y-4">
+            <div className="w-20 h-20 mx-auto bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+              <File className="w-10 h-10 text-gray-400" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold text-gray-900">请选择 Bucket</h3>
+              <p className="text-gray-600">请从左侧 Bucket 列表中选择一个 Bucket 来查看文件</p>
+            </div>
+          </div>
+        </CardContent>
       </Card>
     );
   }
 
   return (
     <>
-      <Card
-        title={`文件列表 - ${selectedBucket}`}
-        size="small"
-        extra={
-          <Space>
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              disabled={selectedObjects.length === 0}
-              onClick={handleDelete}
+      {/* 通知栏 */}
+      {notifications && (
+        <div className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
+          notifications.type === 'success'
+            ? 'bg-green-50 border-green-400 text-green-800'
+            : notifications.type === 'error' ? 'bg-red-50 border-red-400 text-red-800' : 'bg-blue-50 border-blue-400 text-blue-800'
+        }`}>
+          <div className="flex items-center space-x-2">
+            {notifications.type === 'success' ? (
+              <Check className="w-5 h-5" />
+            ) : notifications.type === 'error' ? (
+              <AlertTriangle className="w-5 h-5" />
+            ) : (
+              <RefreshCw className="w-5 h-5" />
+            )}
+            <span className="font-medium">{notifications.message}</span>
+          </div>
+          {notifications.type === 'success' && (
+            <button
+              onClick={() => setNotifications(null)}
+              className="text-current hover:opacity-70"
             >
-              删除选中 ({selectedObjects.length})
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={handleRefresh}
-              loading={isLoadingObjects}
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      <Card className="shadow-sm border-gray-200">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <CardTitle className="text-xl font-bold text-gray-900">
+                {selectedBucket} 文件列表
+              </CardTitle>
+              <Badge variant="outline" className="text-gray-600 border-gray-300">
+                {folders.length + files.length} 个项目
+              </Badge>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              {selectedObjects.length > 0 && (
+                <>
+                  <Badge className="bg-blue-600 text-white">
+                    已选择 {selectedObjects.length} 个
+                  </Badge>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="shadow-sm"
+                  >
+                    {deleting ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    批量删除
+                  </Button>
+                </>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoadingObjects}
+                className="shadow-sm border-gray-300"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingObjects ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
+
+          {/* 面包屑导航 */}
+          <div className="flex items-center space-x-2 pt-3 border-t border-gray-100 mt-3">
+            <button
+              onClick={handleGoHome}
+              className="flex items-center space-x-1 px-2 py-1 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
             >
-              刷新
-            </Button>
-          </Space>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={objects}
-          rowKey="key"
-          loading={isLoadingObjects}
-          pagination={{
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 个文件`,
-          }}
-          size="small"
-        />
+              <Home className="w-4 h-4" />
+              <span>根目录</span>
+            </button>
+
+            {breadcrumbs.map((crumb, index) => (
+              <React.Fragment key={index}>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <button
+                  onClick={() => handleBreadcrumbClick(crumb.path)}
+                  className="px-2 py-1 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                >
+                  {crumb.name}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+
+          {(folders.length > 0 || files.length > 0) && (
+            <div className="flex items-center space-x-2 pt-2">
+              <Checkbox
+                checked={selectedObjects.length === files.length && files.length > 0}
+                onCheckedChange={handleSelectAll}
+                className="border-gray-300"
+              />
+              <span className="text-sm text-gray-600">全选文件</span>
+            </div>
+          )}
+        </CardHeader>
+
+        <CardContent className="pt-0">
+          {isLoadingObjects ? (
+            <div className="text-center py-12 space-y-4">
+              <div className="w-12 h-12 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <p className="text-gray-600 font-medium">正在加载文件列表...</p>
+            </div>
+          ) : (folders.length + files.length) === 0 ? (
+            <div className="text-center py-12 space-y-4">
+              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
+                <Folder className="w-10 h-10 text-gray-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-gray-900">文件夹为空</h3>
+                <p className="text-gray-600">当前文件夹中没有任何文件或子文件夹</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* 文件夹列表 */}
+              {folders.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <Folder className="w-4 h-4 mr-2" />
+                    文件夹 ({folders.length})
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {folders.map((folder) => (
+                      <button
+                        key={folder}
+                        onClick={() => handleFolderClick(folder)}
+                        className="group p-4 rounded-lg border-2 border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-all duration-200 text-left"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center group-hover:from-blue-200 group-hover:to-blue-300 transition-colors">
+                            <FolderOpen className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{folder}</p>
+                            <p className="text-sm text-gray-500">文件夹</p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 文件列表 */}
+              {files.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <File className="w-4 h-4 mr-2" />
+                    文件 ({files.length})
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {files.map((object) => (
+                <div
+                  key={object.key}
+                  className={`group relative p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
+                    selectedObjects.includes(object.key)
+                      ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100'
+                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      checked={selectedObjects.includes(object.key)}
+                      onCheckedChange={() => toggleObjectSelection(object.key)}
+                      className="mt-1 border-gray-300"
+                    />
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                          {getFileIcon(object.key)}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate" title={object.key}>
+                            {object.key.split('/').pop()}
+                          </p>
+
+                          <div className="flex items-center space-x-2 mt-1">
+                            <Badge variant="outline" className={`text-xs px-2 py-0 border ${getFileTypeBadgeClass(object.key)}`}>
+                              {getFileTypeTag(object.key)}
+                            </Badge>
+                            <span className="text-xs text-gray-500">
+                              {S3Service.formatFileSize(object.size)}
+                            </span>
+                          </div>
+
+                          {object.last_modified && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(object.last_modified).toLocaleString('zh-CN')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownload(object)}
+                          className="h-8 px-2 text-xs shadow-sm"
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          下载
+                        </Button>
+
+                        {S3Service.getFileType(object.key) === 'image' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePreview(object)}
+                            className="h-8 px-2 text-xs shadow-sm"
+                          >
+                            <Eye className="w-3 h-3 mr-1" />
+                            预览
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      <Modal
-        title="确认删除"
-        open={showDeleteModal}
-        onOk={confirmDelete}
-        onCancel={() => setShowDeleteModal(false)}
-        confirmLoading={deleting}
-        okText="删除"
-        cancelText="取消"
-        okButtonProps={{ danger: true }}
-      >
-        <p>你确定要删除选中的 {selectedObjects.length} 个文件吗？</p>
-        <p style={{ color: '#ff4d4f' }}>此操作不可逆！</p>
-      </Modal>
+      {/* 删除确认对话框 */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <span>确认删除</span>
+            </DialogTitle>
+            <DialogDescription>
+              你确定要删除选中的 {selectedObjects.length} 个文件吗？
+              <br />
+              <span className="text-destructive font-medium">此操作不可逆！</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  删除
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ImagePreviewModal />
     </>
