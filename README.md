@@ -229,14 +229,13 @@ pnpm run clean:full
 - [Tauri](https://tauri.app/) - 优秀的桌面应用开发框架
 - [shadcn/ui](https://ui.shadcn.com/) - 高质量的组件库
 - [TailwindCSS](https://tailwindcss.com/) - 实用优先的 CSS 框架
-- 所有为这个项目做出贡献的开发者们
 
 ---
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给我们一个 ⭐ Star！**
+**如果这个项目对你有帮助，请给我一个 ⭐ Star！**
 
-Made with ❤️ by Snowy Team
+Made with ❤️ by Snow.Z
 
 </div>
