@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { S3Config, S3Object, BucketInfo } from "../types/s3";
+import { S3Config, S3Object, BucketInfo, UploadProgress } from "../types/s3";
 import { S3Service } from "../services/s3Service";
 
 interface S3Store {
@@ -37,11 +37,21 @@ interface S3Store {
   setLoadingBuckets: (loading: boolean) => void;
   setLoadingObjects: (loading: boolean) => void;
 
+  // Upload state
+  uploadProgresses: UploadProgress[];
+  isUploading: boolean;
+  setUploadProgresses: (progresses: UploadProgress[]) => void;
+  addUploadProgress: (progress: UploadProgress) => void;
+  updateUploadProgress: (filename: string, update: Partial<UploadProgress>) => void;
+  removeUploadProgress: (filename: string) => void;
+  clearUploadProgresses: () => void;
+
   // Actions
-  testConnection: (config: S3Config) => Promise<void>;
+  testConnection: (config: S3Config) => Promise<string>;
   fetchBuckets: () => Promise<void>;
   fetchObjects: () => Promise<void>;
   deleteObjects: (objectKeys: string[]) => Promise<void>;
+  uploadFilesWithDialog: () => Promise<string[]>;
 
   // UI state
   showConfigModal: boolean;
@@ -112,6 +122,37 @@ export const useS3Store = create<S3Store>()(
       isLoadingObjects: false,
       setLoadingBuckets: (loading) => set({ isLoadingBuckets: loading }),
       setLoadingObjects: (loading) => set({ isLoadingObjects: loading }),
+
+      // Upload state
+      uploadProgresses: [],
+      isUploading: false,
+      setUploadProgresses: (progresses) => set({ uploadProgresses: progresses }),
+      addUploadProgress: (progress) => {
+        const { uploadProgresses } = get();
+        set({
+          uploadProgresses: [...uploadProgresses, progress],
+          isUploading: true
+        });
+      },
+      updateUploadProgress: (filename, update) => {
+        const { uploadProgresses } = get();
+        const newProgresses = uploadProgresses.map(p =>
+          p.filename === filename ? { ...p, ...update } : p
+        );
+        set({
+          uploadProgresses: newProgresses,
+          isUploading: newProgresses.some(p => p.status === "uploading")
+        });
+      },
+      removeUploadProgress: (filename) => {
+        const { uploadProgresses } = get();
+        const newProgresses = uploadProgresses.filter(p => p.filename !== filename);
+        set({
+          uploadProgresses: newProgresses,
+          isUploading: newProgresses.some(p => p.status === "uploading")
+        });
+      },
+      clearUploadProgresses: () => set({ uploadProgresses: [], isUploading: false }),
 
       // Actions
       testConnection: async (config) => {
@@ -252,6 +293,41 @@ export const useS3Store = create<S3Store>()(
           throw error;
         } finally {
           set({ loading: false });
+        }
+      },
+
+      uploadFilesWithDialog: async () => {
+        const { config, selectedBucket, currentPrefix } = get();
+        if (!config || !selectedBucket) {
+          throw new Error("请先选择 Bucket");
+        }
+
+        try {
+          console.log("🚀 开始文件上传对话框");
+          const startTime = performance.now();
+
+          const results = await S3Service.uploadFilesWithDialog(
+            config,
+            selectedBucket,
+            currentPrefix || undefined
+          );
+
+          const endTime = performance.now();
+          console.log(
+            `✅ 文件上传完成，耗时: ${(endTime - startTime).toFixed(0)}ms`
+          );
+
+          // 刷新文件列表
+          const { fetchObjects } = get();
+          await fetchObjects();
+
+          return results;
+        } catch (error) {
+          console.error("❌ 文件上传失败:", error);
+          const errorMessage =
+            error instanceof Error ? error.message : "文件上传失败";
+          set({ error: errorMessage });
+          throw error;
         }
       },
 

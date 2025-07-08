@@ -146,7 +146,7 @@ const BucketList: React.FC = () => {
                       >
                         {bucket.name}
                       </p>
-                      {bucket.creationDate && (
+                      {bucket.creation_date && (
                         <p
                           className={`text-sm ${
                             selectedBucket === bucket.name
@@ -155,7 +155,7 @@ const BucketList: React.FC = () => {
                           }`}
                         >
                           创建于{" "}
-                          {new Date(bucket.creationDate).toLocaleDateString(
+                          {new Date(bucket.creation_date).toLocaleDateString(
                             "zh-CN"
                           )}
                         </p>

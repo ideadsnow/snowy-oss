@@ -1,9 +1,10 @@
 import React from "react";
-import { Cloud, Settings, Wifi, WifiOff, AlertCircle } from "lucide-react";
+import { Cloud, Settings, Wifi, WifiOff } from "lucide-react";
 import { useS3Store } from "./stores/useS3Store";
 import ConfigModal from "./components/ConfigModal";
 import BucketList from "./components/BucketList";
 import ObjectList from "./components/ObjectList";
+import UploadProgressIndicator from "./components/UploadProgressIndicator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -197,6 +198,7 @@ function App() {
       </div>
 
       <ConfigModal />
+      <UploadProgressIndicator />
     </div>
   );
 }

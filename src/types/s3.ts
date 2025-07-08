@@ -25,3 +25,27 @@ export interface FilePreview {
   type: "image" | "video" | "text" | "other";
   name: string;
 }
+
+export interface UploadFileRequest {
+  config: S3Config;
+  bucket_name: string;
+  object_key: string;
+  file_path: string;
+  content_type?: string;
+}
+
+export interface UploadProgress {
+  filename: string;
+  progress: number;
+  status: "uploading" | "completed" | "error";
+  error?: string;
+  size?: number;
+  uploadedSize?: number;
+}
+
+export interface UploadResult {
+  success: boolean;
+  message: string;
+  filename: string;
+  objectKey: string;
+}

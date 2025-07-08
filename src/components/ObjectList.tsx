@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Trash2,
   Eye,
@@ -6,24 +6,24 @@ import {
   Download,
   FileImage,
   File,
-  Calendar,
-  HardDrive,
   AlertTriangle,
   Check,
   X,
   Folder,
   FolderOpen,
   ChevronRight,
-  Home
-} from 'lucide-react';
-import { useS3Store } from '../stores/useS3Store';
-import { S3Service } from '../services/s3Service';
-import { S3Object } from '../types/s3';
-import ImagePreviewModal from './ImagePreviewModal';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
+  Home,
+  Upload,
+} from "lucide-react";
+import { useS3Store } from "../stores/useS3Store";
+import { S3Service } from "../services/s3Service";
+import { S3Object } from "../types/s3";
+import ImagePreviewModal from "./ImagePreviewModal";
+import UploadModal from "./UploadModal";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -31,14 +31,14 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '@/components/ui/dialog';
-
+} from "@/components/ui/dialog";
 
 const ObjectList: React.FC = () => {
-    const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [notifications, setNotifications] = useState<{
-    type: 'success' | 'error' | 'info';
+    type: "success" | "error" | "info";
     message: string;
   } | null>(null);
 
@@ -49,14 +49,11 @@ const ObjectList: React.FC = () => {
     selectedObjects,
     currentPrefix,
     isLoadingObjects,
-    error: storeError,
     setSelectedObjects,
     toggleObjectSelection,
     setCurrentPrefix,
     fetchObjects,
     deleteObjects,
-    showImagePreview,
-    previewImageUrl,
     setShowImagePreview,
   } = useS3Store();
 
@@ -65,21 +62,21 @@ const ObjectList: React.FC = () => {
     const folders = new Set<string>();
     const files: S3Object[] = [];
 
-    const prefix = currentPrefix || '';
+    const prefix = currentPrefix || "";
 
-    objects.forEach(obj => {
+    objects.forEach((obj) => {
       // 移除当前前缀
-      const relativePath = prefix ? obj.key.replace(prefix, '') : obj.key;
+      const relativePath = prefix ? obj.key.replace(prefix, "") : obj.key;
 
       // 跳过空路径
       if (!relativePath) return;
 
-      const pathParts = relativePath.split('/');
+      const pathParts = relativePath.split("/");
 
       if (pathParts.length > 1 && pathParts[0]) {
         // 这是一个文件夹中的项目
         folders.add(pathParts[0]);
-      } else if (pathParts[0] && !pathParts[0].includes('/')) {
+      } else if (pathParts[0] && !pathParts[0].includes("/")) {
         // 这是当前目录下的文件
         files.push(obj);
       }
@@ -87,7 +84,7 @@ const ObjectList: React.FC = () => {
 
     return {
       folders: Array.from(folders).sort(),
-      files: files.sort((a, b) => a.key.localeCompare(b.key))
+      files: files.sort((a, b) => a.key.localeCompare(b.key)),
     };
   }, [objects, currentPrefix]);
 
@@ -95,37 +92,42 @@ const ObjectList: React.FC = () => {
   const breadcrumbs = useMemo(() => {
     if (!currentPrefix) return [];
 
-    const parts = currentPrefix.split('/').filter(Boolean);
+    const parts = currentPrefix.split("/").filter(Boolean);
     const crumbs = [];
 
     for (let i = 0; i < parts.length; i++) {
       crumbs.push({
         name: parts[i],
-        path: parts.slice(0, i + 1).join('/') + '/'
+        path: parts.slice(0, i + 1).join("/") + "/",
       });
     }
 
     return crumbs;
   }, [currentPrefix]);
 
-  const showNotification = (type: 'success' | 'error' | 'info', message: string) => {
+  const showNotification = (
+    type: "success" | "error" | "info",
+    message: string
+  ) => {
     setNotifications({ type, message });
     setTimeout(() => setNotifications(null), 5000);
   };
 
   useEffect(() => {
     if (selectedBucket) {
-      fetchObjects().catch(error => {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        showNotification('error', `加载文件列表失败: ${errorMessage}`);
+      fetchObjects().catch((error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        showNotification("error", `加载文件列表失败: ${errorMessage}`);
       });
     }
   }, [selectedBucket, currentPrefix]); // 移除 fetchObjects 依赖，避免重复调用
 
   const handleRefresh = () => {
-    fetchObjects().catch(error => {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      showNotification('error', `刷新文件列表失败: ${errorMessage}`);
+    fetchObjects().catch((error) => {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      showNotification("error", `刷新文件列表失败: ${errorMessage}`);
     });
   };
 
@@ -135,78 +137,88 @@ const ObjectList: React.FC = () => {
     try {
       const fileType = S3Service.getFileType(object.key);
 
-      if (fileType === 'image') {
-        const url = await S3Service.getPresignedUrl(config, selectedBucket, object.key);
+      if (fileType === "image") {
+        const url = await S3Service.getPresignedUrl(
+          config,
+          selectedBucket,
+          object.key
+        );
         setShowImagePreview(true, url, object);
       } else {
-        showNotification('info', '该文件类型不支持预览');
+        showNotification("info", "该文件类型不支持预览");
       }
     } catch (error) {
-      console.error('Failed to generate preview URL:', error);
-      showNotification('error', '生成预览链接失败');
+      console.error("Failed to generate preview URL:", error);
+      showNotification("error", "生成预览链接失败");
     }
   };
 
-    const handleDownload = async (object: S3Object) => {
+  const handleDownload = async (object: S3Object) => {
     if (!config || !selectedBucket) return;
 
-        try {
+    try {
       // 先尝试 Tauri 原生下载，如果失败则回退到浏览器下载
       try {
         await downloadWithTauri(object);
       } catch (tauriError: any) {
-        console.warn('Tauri 下载不可用，使用浏览器下载:', tauriError.message);
-        if (tauriError.message?.includes('not found') ||
-            tauriError.message?.includes('command') ||
-            tauriError.message?.includes('Command') ||
-            tauriError.message?.includes('invoke')) {
+        console.warn("Tauri 下载不可用，使用浏览器下载:", tauriError.message);
+        if (
+          tauriError.message?.includes("not found") ||
+          tauriError.message?.includes("command") ||
+          tauriError.message?.includes("Command") ||
+          tauriError.message?.includes("invoke")
+        ) {
           await downloadWithBrowser(object);
         } else {
           throw tauriError; // 重新抛出非命令相关的错误
         }
       }
     } catch (error) {
-      console.error('下载失败:', error);
-      showNotification('error', '下载失败');
+      console.error("下载失败:", error);
+      showNotification("error", "下载失败");
     }
   };
 
   const downloadWithTauri = async (object: S3Object) => {
     // 使用 Tauri v2 的核心 invoke 方法来调用后端实现的下载功能
-    const { invoke } = await import('@tauri-apps/api/core');
+    const { invoke } = await import("@tauri-apps/api/core");
 
-    const fileName = object.key.split('/').pop() || object.key;
-    showNotification('info', '正在选择保存位置...');
+    const fileName = object.key.split("/").pop() || object.key;
+    showNotification("info", "正在选择保存位置...");
 
     // 调用后端的下载文件函数
-    const result = await invoke('download_file', {
+    const result = await invoke("download_file", {
       request: {
         config: config!,
         bucket_name: selectedBucket!,
         object_key: object.key,
-        default_file_name: fileName
-      }
+        default_file_name: fileName,
+      },
     });
 
-    showNotification('success', `文件已保存: ${result}`);
+    showNotification("success", `文件已保存: ${result}`);
   };
 
   const downloadWithBrowser = async (object: S3Object) => {
     try {
-      showNotification('info', '正在生成下载链接...');
-      const url = await S3Service.getPresignedUrl(config!, selectedBucket!, object.key);
+      showNotification("info", "正在生成下载链接...");
+      const url = await S3Service.getPresignedUrl(
+        config!,
+        selectedBucket!,
+        object.key
+      );
 
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.download = object.key.split('/').pop() || object.key;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      link.download = object.key.split("/").pop() || object.key;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      showNotification('success', '下载已开始');
+      showNotification("success", "下载已开始");
     } catch (error) {
       throw error;
     }
@@ -214,7 +226,7 @@ const ObjectList: React.FC = () => {
 
   const handleDelete = () => {
     if (selectedObjects.length === 0) {
-      showNotification('info', '请选择要删除的文件');
+      showNotification("info", "请选择要删除的文件");
       return;
     }
     setShowDeleteModal(true);
@@ -226,12 +238,13 @@ const ObjectList: React.FC = () => {
     try {
       setDeleting(true);
       await deleteObjects(selectedObjects);
-      showNotification('success', `成功删除 ${selectedObjects.length} 个文件`);
+      showNotification("success", `成功删除 ${selectedObjects.length} 个文件`);
       setShowDeleteModal(false);
     } catch (error) {
-      console.error('Failed to delete objects:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      showNotification('error', `删除文件失败: ${errorMessage}`);
+      console.error("Failed to delete objects:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      showNotification("error", `删除文件失败: ${errorMessage}`);
     } finally {
       setDeleting(false);
     }
@@ -239,30 +252,25 @@ const ObjectList: React.FC = () => {
 
   const getFileIcon = (filename: string) => {
     const fileType = S3Service.getFileType(filename);
-    return fileType === 'image' ?
-      <FileImage className="w-4 h-4 text-green-500" /> :
-      <File className="w-4 h-4 text-gray-500" />;
+    return fileType === "image" ? (
+      <FileImage className="w-4 h-4 text-green-500" />
+    ) : (
+      <File className="w-4 h-4 text-gray-500" />
+    );
   };
 
   const getFileTypeTag = (filename: string) => {
     const fileType = S3Service.getFileType(filename);
-    const colorClasses = {
-      image: 'bg-green-100 text-green-800 border-green-200',
-      video: 'bg-blue-100 text-blue-800 border-blue-200',
-      text: 'bg-orange-100 text-orange-800 border-orange-200',
-      other: 'bg-gray-100 text-gray-800 border-gray-200',
-    };
-
     return fileType.toUpperCase();
   };
 
   const getFileTypeBadgeClass = (filename: string) => {
     const fileType = S3Service.getFileType(filename);
     const colorClasses = {
-      image: 'bg-green-100 text-green-800 border-green-200',
-      video: 'bg-blue-100 text-blue-800 border-blue-200',
-      text: 'bg-orange-100 text-orange-800 border-orange-200',
-      other: 'bg-gray-100 text-gray-800 border-gray-200',
+      image: "bg-green-100 text-green-800 border-green-200",
+      video: "bg-blue-100 text-blue-800 border-blue-200",
+      text: "bg-orange-100 text-orange-800 border-orange-200",
+      other: "bg-gray-100 text-gray-800 border-gray-200",
     };
 
     return colorClasses[fileType];
@@ -270,7 +278,7 @@ const ObjectList: React.FC = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedObjects(files.map(obj => obj.key));
+      setSelectedObjects(files.map((obj) => obj.key));
     } else {
       setSelectedObjects([]);
     }
@@ -278,7 +286,7 @@ const ObjectList: React.FC = () => {
 
   // 进入文件夹
   const handleFolderClick = (folderName: string) => {
-    const newPrefix = (currentPrefix || '') + folderName + '/';
+    const newPrefix = (currentPrefix || "") + folderName + "/";
     setCurrentPrefix(newPrefix);
   };
 
@@ -289,7 +297,7 @@ const ObjectList: React.FC = () => {
 
   // 返回根目录
   const handleGoHome = () => {
-    setCurrentPrefix('');
+    setCurrentPrefix("");
   };
 
   if (!selectedBucket) {
@@ -301,8 +309,12 @@ const ObjectList: React.FC = () => {
               <File className="w-10 h-10 text-gray-400" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold text-gray-900">请选择 Bucket</h3>
-              <p className="text-gray-600">请从左侧 Bucket 列表中选择一个 Bucket 来查看文件</p>
+              <h3 className="text-lg font-semibold text-gray-900">
+                请选择 Bucket
+              </h3>
+              <p className="text-gray-600">
+                请从左侧 Bucket 列表中选择一个 Bucket 来查看文件
+              </p>
             </div>
           </div>
         </CardContent>
@@ -314,22 +326,26 @@ const ObjectList: React.FC = () => {
     <>
       {/* 通知栏 */}
       {notifications && (
-        <div className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
-          notifications.type === 'success'
-            ? 'bg-green-50 border-green-400 text-green-800'
-            : notifications.type === 'error' ? 'bg-red-50 border-red-400 text-red-800' : 'bg-blue-50 border-blue-400 text-blue-800'
-        }`}>
+        <div
+          className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
+            notifications.type === "success"
+              ? "bg-green-50 border-green-400 text-green-800"
+              : notifications.type === "error"
+              ? "bg-red-50 border-red-400 text-red-800"
+              : "bg-blue-50 border-blue-400 text-blue-800"
+          }`}
+        >
           <div className="flex items-center space-x-2">
-            {notifications.type === 'success' ? (
+            {notifications.type === "success" ? (
               <Check className="w-5 h-5" />
-            ) : notifications.type === 'error' ? (
+            ) : notifications.type === "error" ? (
               <AlertTriangle className="w-5 h-5" />
             ) : (
               <RefreshCw className="w-5 h-5" />
             )}
             <span className="font-medium">{notifications.message}</span>
           </div>
-          {notifications.type === 'success' && (
+          {notifications.type === "success" && (
             <button
               onClick={() => setNotifications(null)}
               className="text-current hover:opacity-70"
@@ -347,7 +363,10 @@ const ObjectList: React.FC = () => {
               <CardTitle className="text-xl font-bold text-gray-900">
                 {selectedBucket} 文件列表
               </CardTitle>
-              <Badge variant="outline" className="text-gray-600 border-gray-300">
+              <Badge
+                variant="outline"
+                className="text-gray-600 border-gray-300"
+              >
                 {folders.length + files.length} 个项目
               </Badge>
             </div>
@@ -376,13 +395,26 @@ const ObjectList: React.FC = () => {
               )}
 
               <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowUploadModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                上传文件
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={isLoadingObjects}
                 className="shadow-sm border-gray-300"
               >
-                <RefreshCw className={`w-4 h-4 ${isLoadingObjects ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`w-4 h-4 ${
+                    isLoadingObjects ? "animate-spin" : ""
+                  }`}
+                />
               </Button>
             </div>
           </div>
@@ -413,7 +445,9 @@ const ObjectList: React.FC = () => {
           {(folders.length > 0 || files.length > 0) && (
             <div className="flex items-center space-x-2 pt-2">
               <Checkbox
-                checked={selectedObjects.length === files.length && files.length > 0}
+                checked={
+                  selectedObjects.length === files.length && files.length > 0
+                }
                 onCheckedChange={handleSelectAll}
                 className="border-gray-300"
               />
@@ -428,14 +462,18 @@ const ObjectList: React.FC = () => {
               <div className="w-12 h-12 mx-auto border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
               <p className="text-gray-600 font-medium">正在加载文件列表...</p>
             </div>
-          ) : (folders.length + files.length) === 0 ? (
+          ) : folders.length + files.length === 0 ? (
             <div className="text-center py-12 space-y-4">
               <div className="w-20 h-20 mx-auto bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
                 <Folder className="w-10 h-10 text-gray-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-lg font-semibold text-gray-900">文件夹为空</h3>
-                <p className="text-gray-600">当前文件夹中没有任何文件或子文件夹</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  文件夹为空
+                </h3>
+                <p className="text-gray-600">
+                  当前文件夹中没有任何文件或子文件夹
+                </p>
               </div>
             </div>
           ) : (
@@ -459,7 +497,9 @@ const ObjectList: React.FC = () => {
                             <FolderOpen className="w-5 h-5 text-blue-600" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">{folder}</p>
+                            <p className="font-medium text-gray-900 truncate">
+                              {folder}
+                            </p>
                             <p className="text-sm text-gray-500">文件夹</p>
                           </div>
                           <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600" />
@@ -479,75 +519,88 @@ const ObjectList: React.FC = () => {
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                     {files.map((object) => (
-                <div
-                  key={object.key}
-                  className={`group relative p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
-                    selectedObjects.includes(object.key)
-                      ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100'
-                      : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-start space-x-3">
-                    <Checkbox
-                      checked={selectedObjects.includes(object.key)}
-                      onCheckedChange={() => toggleObjectSelection(object.key)}
-                      className="mt-1 border-gray-300"
-                    />
+                      <div
+                        key={object.key}
+                        className={`group relative p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
+                          selectedObjects.includes(object.key)
+                            ? "border-blue-500 bg-gradient-to-r from-blue-50 to-blue-100"
+                            : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <Checkbox
+                            checked={selectedObjects.includes(object.key)}
+                            onCheckedChange={() =>
+                              toggleObjectSelection(object.key)
+                            }
+                            className="mt-1 border-gray-300"
+                          />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                          {getFileIcon(object.key)}
-                        </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start space-x-3">
+                              <div className="flex-shrink-0">
+                                {getFileIcon(object.key)}
+                              </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 truncate" title={object.key}>
-                            {object.key.split('/').pop()}
-                          </p>
+                              <div className="flex-1 min-w-0">
+                                <p
+                                  className="font-medium text-gray-900 truncate"
+                                  title={object.key}
+                                >
+                                  {object.key.split("/").pop()}
+                                </p>
 
-                          <div className="flex items-center space-x-2 mt-1">
-                            <Badge variant="outline" className={`text-xs px-2 py-0 border ${getFileTypeBadgeClass(object.key)}`}>
-                              {getFileTypeTag(object.key)}
-                            </Badge>
-                            <span className="text-xs text-gray-500">
-                              {S3Service.formatFileSize(object.size)}
-                            </span>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs px-2 py-0 border ${getFileTypeBadgeClass(
+                                      object.key
+                                    )}`}
+                                  >
+                                    {getFileTypeTag(object.key)}
+                                  </Badge>
+                                  <span className="text-xs text-gray-500">
+                                    {S3Service.formatFileSize(object.size)}
+                                  </span>
+                                </div>
+
+                                {object.last_modified && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {new Date(
+                                      object.last_modified
+                                    ).toLocaleString("zh-CN")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center space-x-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownload(object)}
+                                className="h-8 px-2 text-xs shadow-sm"
+                              >
+                                <Download className="w-3 h-3 mr-1" />
+                                下载
+                              </Button>
+
+                              {S3Service.getFileType(object.key) ===
+                                "image" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handlePreview(object)}
+                                  className="h-8 px-2 text-xs shadow-sm"
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  预览
+                                </Button>
+                              )}
+                            </div>
                           </div>
-
-                          {object.last_modified && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(object.last_modified).toLocaleString('zh-CN')}
-                            </p>
-                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center space-x-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownload(object)}
-                          className="h-8 px-2 text-xs shadow-sm"
-                        >
-                          <Download className="w-3 h-3 mr-1" />
-                          下载
-                        </Button>
-
-                        {S3Service.getFileType(object.key) === 'image' && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePreview(object)}
-                            className="h-8 px-2 text-xs shadow-sm"
-                          >
-                            <Eye className="w-3 h-3 mr-1" />
-                            预览
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
                     ))}
                   </div>
                 </div>
@@ -568,7 +621,9 @@ const ObjectList: React.FC = () => {
             <DialogDescription>
               你确定要删除选中的 {selectedObjects.length} 个文件吗？
               <br />
-              <span className="text-destructive font-medium">此操作不可逆！</span>
+              <span className="text-destructive font-medium">
+                此操作不可逆！
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -597,9 +652,14 @@ const ObjectList: React.FC = () => {
       </Dialog>
 
       <ImagePreviewModal />
+
+      {/* 上传模态框 */}
+      <UploadModal
+        open={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+      />
     </>
   );
 };
 
 export default ObjectList;
-
